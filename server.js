@@ -13,8 +13,12 @@ app.post('/api/render', (req, res) => {
   if (typeof markdown !== 'string') {
     return res.status(400).json({ error: 'Invalid input' });
   }
-  const html = marked(markdown);
-  res.json({ html });
+  try {
+    const html = marked(markdown);
+    res.json({ html });
+  } catch (err) {
+    res.status(400).json({ error: 'Markdown 解析失败：' + err.message });
+  }
 });
 
 app.listen(PORT, () => {

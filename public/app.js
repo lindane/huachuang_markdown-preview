@@ -1,5 +1,12 @@
 const editor = document.getElementById('editor');
 const preview = document.getElementById('preview');
+const container = document.querySelector('.container');
+
+container.style.height = 'auto';
+container.style.minHeight = '100vh';
+preview.style.flex = 'none';
+preview.style.overflow = 'hidden';
+preview.setAttribute('scrolling', 'no');
 
 function debounce(fn, delay) {
   let timer = null;
@@ -7,6 +14,24 @@ function debounce(fn, delay) {
     clearTimeout(timer);
     timer = setTimeout(() => fn.apply(this, args), delay);
   };
+}
+
+function adjustIframeHeight() {
+  try {
+    const doc = preview.contentDocument || preview.contentWindow.document;
+    const body = doc.body;
+    const html = doc.documentElement;
+    const height = Math.max(
+      body.scrollHeight,
+      body.offsetHeight,
+      html.clientHeight,
+      html.scrollHeight,
+      html.offsetHeight
+    );
+    preview.style.height = height + 'px';
+  } catch (e) {
+    console.error('Adjust iframe height error:', e);
+  }
 }
 
 async function renderMarkdown(markdown) {
@@ -17,6 +42,33 @@ async function renderMarkdown(markdown) {
       body: JSON.stringify({ markdown })
     });
     const data = await response.json();
+
+    if (data.error) {
+      const doc = preview.contentDocument || preview.contentWindow.document;
+      doc.open();
+      doc.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              padding: 16px;
+              line-height: 1.6;
+              color: #a33;
+              background: #fff5f5;
+            }
+          </style>
+        </head>
+        <body><strong>渲染错误：</strong>${data.error}</body>
+        </html>
+      `);
+      doc.close();
+      adjustIframeHeight();
+      return;
+    }
+
     const doc = preview.contentDocument || preview.contentWindow.document;
     doc.open();
     doc.write(`
@@ -30,6 +82,7 @@ async function renderMarkdown(markdown) {
             padding: 16px;
             line-height: 1.6;
             color: #333;
+            margin: 0;
           }
           h1, h2, h3, h4, h5, h6 { margin: 1em 0 0.5em; }
           p { margin: 0.8em 0; }
@@ -50,6 +103,14 @@ async function renderMarkdown(markdown) {
       </html>
     `);
     doc.close();
+
+    adjustIframeHeight();
+    const images = doc.querySelectorAll('img');
+    images.forEach(img => {
+      if (!img.complete) {
+        img.addEventListener('load', adjustIframeHeight);
+      }
+    });
   } catch (err) {
     console.error('Render error:', err);
   }
