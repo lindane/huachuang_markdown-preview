@@ -187,7 +187,21 @@ function createToolbar() {
   `;
   clearBtn.addEventListener('click', clearEditor);
 
+  const exportBtn = document.createElement('button');
+  exportBtn.textContent = '导出 HTML';
+  exportBtn.style.cssText = `
+    padding: 6px 16px;
+    background: #28a745;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+  `;
+  exportBtn.addEventListener('click', exportHtml);
+
   toolbar.appendChild(title);
+  toolbar.appendChild(exportBtn);
   toolbar.appendChild(saveBtn);
   toolbar.appendChild(clearBtn);
 
@@ -274,19 +288,50 @@ async function loadSavedList() {
     }
 
     data.files.forEach(filename => {
-      const item = document.createElement('span');
-      item.textContent = filename;
-      item.style.cssText = `
-        padding: 4px 10px;
+      const itemWrap = document.createElement('div');
+      itemWrap.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 2px;
         background: #fff;
         border: 1px solid #ddd;
         border-radius: 4px;
+        overflow: hidden;
+      `;
+
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = filename;
+      nameSpan.style.cssText = `
+        padding: 4px 10px;
         font-size: 13px;
         color: #0366d6;
         cursor: pointer;
       `;
-      item.addEventListener('click', () => loadDocument(filename));
-      listContainer.appendChild(item);
+      nameSpan.addEventListener('click', () => loadDocument(filename));
+
+      const delBtn = document.createElement('button');
+      delBtn.textContent = '×';
+      delBtn.title = '删除';
+      delBtn.style.cssText = `
+        padding: 4px 8px;
+        background: transparent;
+        color: #a33;
+        border: none;
+        border-left: 1px solid #eee;
+        cursor: pointer;
+        font-size: 14px;
+        line-height: 1;
+      `;
+      delBtn.addEventListener('mouseenter', () => { delBtn.style.background = '#fff5f5'; });
+      delBtn.addEventListener('mouseleave', () => { delBtn.style.background = 'transparent'; });
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteDocument(filename);
+      });
+
+      itemWrap.appendChild(nameSpan);
+      itemWrap.appendChild(delBtn);
+      listContainer.appendChild(itemWrap);
     });
   } catch (err) {
     console.error('加载文档列表失败：', err);
@@ -305,6 +350,48 @@ async function loadDocument(filename) {
     }
   } catch (err) {
     alert('加载失败：' + err.message);
+  }
+}
+
+async function deleteDocument(filename) {
+  if (!confirm('确定要删除文件 "' + filename + '" 吗？')) {
+    return;
+  }
+  try {
+    const response = await fetch('/api/saved/' + encodeURIComponent(filename), {
+      method: 'DELETE'
+    });
+    const data = await response.json();
+    if (data.success) {
+      loadSavedList();
+    } else {
+      alert('删除失败：' + (data.error || '未知错误'));
+    }
+  } catch (err) {
+    alert('删除失败：' + err.message);
+  }
+}
+
+async function exportHtml() {
+  const markdown = editor.value;
+  if (!markdown.trim()) {
+    alert('内容为空，无法导出');
+    return;
+  }
+  try {
+    const response = await fetch('/api/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ markdown })
+    });
+    const data = await response.json();
+    if (data.filename) {
+      alert('导出成功：' + data.filename + '\n文件保存在 exported/ 目录下');
+    } else {
+      alert('导出失败：' + (data.error || '未知错误'));
+    }
+  } catch (err) {
+    alert('导出失败：' + err.message);
   }
 }
 
