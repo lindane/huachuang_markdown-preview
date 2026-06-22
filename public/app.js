@@ -145,3 +145,169 @@ console.log('Hello, Markdown!');
 
 editor.value = sampleMarkdown;
 renderMarkdown(sampleMarkdown);
+
+function createToolbar() {
+  const toolbar = document.createElement('div');
+  toolbar.style.cssText = `
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: #fafafa;
+    border-bottom: 1px solid #ddd;
+  `;
+
+  const title = document.createElement('span');
+  title.textContent = 'Markdown 在线预览';
+  title.style.cssText = 'font-weight: 600; font-size: 15px; color: #333; margin-right: auto;';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = '保存';
+  saveBtn.style.cssText = `
+    padding: 6px 16px;
+    background: #0366d6;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+  `;
+  saveBtn.addEventListener('click', saveDocument);
+
+  const clearBtn = document.createElement('button');
+  clearBtn.textContent = '清空';
+  clearBtn.style.cssText = `
+    padding: 6px 16px;
+    background: #fff;
+    color: #333;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+  `;
+  clearBtn.addEventListener('click', clearEditor);
+
+  toolbar.appendChild(title);
+  toolbar.appendChild(saveBtn);
+  toolbar.appendChild(clearBtn);
+
+  document.body.insertBefore(toolbar, container);
+}
+
+function createSavedList() {
+  const listSection = document.createElement('div');
+  listSection.style.cssText = `
+    padding: 16px;
+    border-top: 1px solid #ddd;
+    background: #fafafa;
+  `;
+
+  const listTitle = document.createElement('div');
+  listTitle.textContent = '已保存文档';
+  listTitle.style.cssText = 'font-weight: 600; font-size: 14px; color: #333; margin-bottom: 10px;';
+
+  const listContainer = document.createElement('div');
+  listContainer.id = 'saved-list';
+  listContainer.style.cssText = `
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 24px;
+  `;
+
+  const emptyTip = document.createElement('span');
+  emptyTip.id = 'saved-empty';
+  emptyTip.textContent = '暂无保存的文档';
+  emptyTip.style.cssText = 'color: #999; font-size: 13px;';
+
+  listSection.appendChild(listTitle);
+  listSection.appendChild(listContainer);
+  listContainer.appendChild(emptyTip);
+
+  document.body.appendChild(listSection);
+}
+
+async function saveDocument() {
+  const markdown = editor.value;
+  if (!markdown.trim()) {
+    alert('内容为空，无法保存');
+    return;
+  }
+  try {
+    const response = await fetch('/api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ markdown })
+    });
+    const data = await response.json();
+    if (data.filename) {
+      alert('保存成功：' + data.filename);
+      loadSavedList();
+    } else {
+      alert('保存失败：' + (data.error || '未知错误'));
+    }
+  } catch (err) {
+    alert('保存失败：' + err.message);
+  }
+}
+
+function clearEditor() {
+  if (confirm('确定要清空编辑器内容吗？')) {
+    editor.value = '';
+    renderMarkdown('');
+  }
+}
+
+async function loadSavedList() {
+  try {
+    const response = await fetch('/api/saved');
+    const data = await response.json();
+    const listContainer = document.getElementById('saved-list');
+    const emptyTip = document.getElementById('saved-empty');
+
+    listContainer.innerHTML = '';
+
+    if (!data.files || data.files.length === 0) {
+      emptyTip.textContent = '暂无保存的文档';
+      listContainer.appendChild(emptyTip);
+      return;
+    }
+
+    data.files.forEach(filename => {
+      const item = document.createElement('span');
+      item.textContent = filename;
+      item.style.cssText = `
+        padding: 4px 10px;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 13px;
+        color: #0366d6;
+        cursor: pointer;
+      `;
+      item.addEventListener('click', () => loadDocument(filename));
+      listContainer.appendChild(item);
+    });
+  } catch (err) {
+    console.error('加载文档列表失败：', err);
+  }
+}
+
+async function loadDocument(filename) {
+  try {
+    const response = await fetch('/api/saved/' + encodeURIComponent(filename));
+    const data = await response.json();
+    if (data.content !== undefined) {
+      editor.value = data.content;
+      renderMarkdown(data.content);
+    } else {
+      alert('加载失败：' + (data.error || '未知错误'));
+    }
+  } catch (err) {
+    alert('加载失败：' + err.message);
+  }
+}
+
+createToolbar();
+createSavedList();
+loadSavedList();
